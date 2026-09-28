@@ -1,0 +1,498 @@
+<!doctype html>
+<!--
+  ЕЖЕДНЕВНАЯ РУЛЕТКА — мини-апп Telegram для бота YarVpn (один файл, без сборки)
+
+  КАК ЗАЛИТЬ НА GITHUB PAGES (5 минут):
+   1. github.com → New repository → имя, например, yarvpn-roulette → Public → Create repository.
+   2. На странице репозитория: «uploading an existing file» → перетащи ЭТОТ файл (index.html) → Commit changes.
+   3. Settings → Pages → Build and deployment → Source: «Deploy from a branch» → Branch: main, папка / (root) → Save.
+   4. Через 1–2 минуты сайт откроется по адресу https://ТВОЙ_НИК.github.io/yarvpn-roulette/ — это и есть ссылка на мини-апп.
+   5. Впиши её в config.py бота: ROULETTE_WEBAPP_URL = "https://ТВОЙ_НИК.github.io/yarvpn-roulette/"
+      и перезапусти бота — кнопка «Ежедневная рулетка» в меню оживёт.
+
+  ПЕРЕД ЗАЛИВКОЙ впиши ниже в API_BASE публичный HTTPS-адрес бота — тот же, что PUBLIC_BASE_URL в config.py.
+  Пока API_BASE пустой или страница открыта не из Telegram — работает ДЕМО: колесо крутится, но призы не начисляются.
+-->
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#232326">
+<title>Ежедневная рулетка — YarVpn</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: #232326;
+    --surface: #2e2e32;
+    --surface-2: #38383d;
+    --line: #333338;
+    --text: #ececf1;
+    --muted: #8e8e98;
+    --blue: #3366ff;
+    --blue-press: #2957e6;
+    --danger: #ff8a8a;
+    --ok: #5be0a6;
+    --card: 102px;
+    --gap: 12px;
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body { min-height: 100vh; font-size: 16px; line-height: 1.4; -webkit-font-smoothing: antialiased; overscroll-behavior-y: none; }
+  main { max-width: 520px; margin: 0 auto; padding: 8px 20px calc(130px + var(--safe-b)); }
+
+  .top { display: flex; align-items: center; justify-content: space-between; min-height: 48px; }
+  .brand { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+  .balance { background: var(--surface); border-radius: 16px; padding: 8px 14px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* лента призов: карточки, рамка-выделение по центру и указатель сверху — как в GetGems */
+  .reel-wrap { position: relative; height: 150px; margin: 18px -20px 0; user-select: none; -webkit-user-select: none; }
+  .reel { position: absolute; left: 0; right: 0; top: 0; bottom: 0; overflow: hidden; }
+  .strip { position: absolute; left: 0; top: 24px; display: flex; gap: var(--gap); will-change: transform; }
+  .card { flex: 0 0 var(--card); width: var(--card); height: var(--card); border-radius: 22px; background: var(--surface); display: grid; place-items: center; }
+  .disc { width: 84px; height: 84px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; text-shadow: 0 1px 2px rgba(0, 0, 0, .18); }
+  .disc .big { font-size: 27px; font-weight: 800; line-height: 1; letter-spacing: -0.03em; }
+  .disc .small { margin-top: 3px; font-size: 11px; font-weight: 600; opacity: .92; }
+  .frame { position: absolute; left: 50%; top: 19px; width: 112px; height: 112px; margin-left: -56px; border: 5px solid var(--blue); border-radius: 27px; box-shadow: inset 0 0 0 3px #fff; pointer-events: none; }
+  .frame.win { animation: pulse .9s ease-out; }
+  .pointer { position: absolute; left: 50%; top: 5px; width: 40px; height: 34px; margin-left: -20px; pointer-events: none; }
+  .spark { position: absolute; left: 50%; top: 75px; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--c); pointer-events: none; animation: fly .9s ease-out forwards; }
+  @keyframes pulse { from { box-shadow: inset 0 0 0 3px #fff, 0 0 0 0 rgba(51, 102, 255, .75); } to { box-shadow: inset 0 0 0 3px #fff, 0 0 0 28px rgba(51, 102, 255, 0); } }
+  @keyframes fly { to { transform: translate(var(--x), var(--y)) scale(.35); opacity: 0; } }
+
+  .info { margin-top: 26px; }
+  h1 { margin: 0; display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: clamp(26px, 8.6vw, 34px); line-height: 1.12; font-weight: 800; letter-spacing: -0.03em; }
+  .chip { display: inline-block; margin-top: 14px; padding: 9px 16px; border-radius: 16px; background: var(--surface); font-size: 16px; font-weight: 600; }
+  .byline { display: flex; align-items: center; gap: 8px; margin-top: 14px; color: var(--muted); font-size: 20px; font-weight: 500; }
+  .note { margin: 16px 0 0; min-height: 1.4em; font-size: 15px; color: var(--muted); }
+  .note.ok { color: var(--ok); }
+  .note.err { color: var(--danger); }
+
+  section.block { margin-top: 34px; }
+  h2 { margin: 0 0 6px; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  .row { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); }
+  .row:first-child { border-top: 0; }
+  .mini { flex: 0 0 44px; width: 44px; height: 44px; border-radius: 14px; background: var(--surface); display: grid; place-items: center; }
+  .mini .disc { width: 34px; height: 34px; }
+  .mini .disc .big { font-size: 12px; }
+  .mini .disc .small { display: none; }
+  .row .name { flex: 1; font-weight: 600; }
+  .row .meta { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .empty { margin: 4px 0 0; color: var(--muted); }
+  .fair { margin: 34px 0 0; color: var(--muted); font-size: 14px; }
+
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 30px 20px calc(14px + var(--safe-b)); background: linear-gradient(to top, var(--bg) 62%, rgba(35, 35, 38, 0)); pointer-events: none; }
+  .bar button { pointer-events: auto; display: block; width: 100%; max-width: 480px; height: 60px; margin: 0 auto; border: 0; border-radius: 20px; background: var(--blue); color: #fff; font: inherit; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; }
+  .bar button:active { background: var(--blue-press); transform: scale(.99); }
+  .bar button:disabled { background: var(--surface-2); color: var(--muted); cursor: default; transform: none; }
+  button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+
+  @media (prefers-reduced-motion: reduce) { .frame.win { animation: none; } .spark { display: none; } }
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div class="brand">Ежедневная рулетка</div>
+    <div class="balance" id="balance" hidden></div>
+  </header>
+
+  <div class="reel-wrap" id="reelWrap" aria-hidden="true">
+    <div class="reel" id="reel"><div class="strip" id="strip"></div></div>
+    <div class="frame" id="frame"></div>
+    <svg class="pointer" viewBox="0 0 40 34" xmlns="http://www.w3.org/2000/svg"><path d="M6 4h28a3 3 0 0 1 2.4 4.8L22.4 28.6a3 3 0 0 1-4.8 0L3.6 8.8A3 3 0 0 1 6 4z" fill="#3366ff" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></svg>
+  </div>
+
+  <div class="info">
+    <h1 id="title">Ежедневная рулетка</h1>
+    <div class="chip" id="chip">Загрузка…</div>
+    <div class="byline">YarVpn
+      <svg width="22" height="22" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-label="Проверенный сервис" role="img"><path fill="#3366ff" d="M12 1.5l2.6 1.9 3.2-.1 1 3 2.6 1.9-1 3.1 1 3.1-2.6 1.9-1 3-3.2-.1L12 22.5l-2.6-1.9-3.2.1-1-3L2.6 15.8l1-3.1-1-3.1 2.6-1.9 1-3 3.2.1z"/><path d="M8 12.3l2.7 2.7 5.5-5.5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <p class="note" id="note" role="status" aria-live="polite"></p>
+  </div>
+
+  <section class="block">
+    <h2>Что можно выиграть</h2>
+    <ul id="odds"></ul>
+  </section>
+
+  <section class="block">
+    <h2>Мои призы</h2>
+    <ul id="history"></ul>
+    <p class="empty" id="historyEmpty" hidden>Пока пусто. Первый приз — после первого билетика.</p>
+  </section>
+
+  <p class="fair">Приз выбирает сервер бота, а не приложение, поэтому исход подкрутить нельзя. Новый билетик каждый день в 14:00 по Москве.</p>
+</main>
+
+<div class="bar"><button id="cta" type="button" disabled>Загрузка…</button></div>
+
+<script>
+"use strict";
+
+/* ===== НАСТРОЙКА ===== */
+// Публичный HTTPS-адрес бота (PUBLIC_BASE_URL из config.py), без слэша на конце. Пример: "https://api.yarlik.space"
+const API_BASE = "";
+
+/* Призы по умолчанию — для демо и на случай, пока сервер не ответил. В рабочем режиме список и шансы приходят с сервера. */
+const DEFAULT_PRIZES = [
+  { key: "cash150", type: "balance",       amount: 150, weight: 1,  label: "150 ₽ на баланс" },
+  { key: "cash100", type: "balance",       amount: 100, weight: 3,  label: "100 ₽ на баланс" },
+  { key: "cash50",  type: "balance",       amount: 50,  weight: 4,  label: "50 ₽ на баланс" },
+  { key: "cash20",  type: "balance",       amount: 20,  weight: 5,  label: "20 ₽ на баланс" },
+  { key: "sub1d",   type: "sub_days",      amount: 1,   weight: 15, label: "Подписка на 1 день" },
+  { key: "cash5",   type: "balance",       amount: 5,   weight: 25, label: "5 ₽ на баланс" },
+  { key: "promo20", type: "deposit_bonus", amount: 20,  weight: 47, label: "Промокод +20% к депозиту" }
+];
+
+const ERR = {
+  bad_init_data: "Не удалось подтвердить вас в Telegram. Закройте приложение и откройте его снова из бота.",
+  not_registered: "Сначала запустите бота: отправьте ему /start и примите условия. Потом вернитесь за билетиком.",
+  server_error: "На сервере что-то пошло не так, билетик не потрачен. Попробуйте ещё раз через минуту.",
+  network: "Нет связи с сервером. Проверьте интернет и откройте приложение снова — если приз уже выпал, он на балансе."
+};
+
+/* ===== СОСТОЯНИЕ И УТИЛИТЫ ===== */
+const $ = (id) => document.getElementById(id);
+const tg = window.Telegram && window.Telegram.WebApp;
+const nf = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });
+const money = (v) => nf.format(v) + " ₽";
+const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const CARD = 102, STEP = CARD + 12;
+const plural = (n, a, b, c) => { const m10 = n % 10, m100 = n % 100; return m10 === 1 && m100 !== 11 ? a : (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) ? b : c; };
+const tgTry = (fn) => { try { fn(); } catch (_) {} };
+
+const S = {
+  prizes: DEFAULT_PRIZES, hasTicket: true, nextAt: 0, skew: 0, balance: null, history: [], pendingBonus: null,
+  loaded: false, busy: false, result: null, fatal: null, noteOverride: null,
+  demo: !(tg && tg.initData && API_BASE), focusIdx: 0, lastRefresh: 0
+};
+
+/* ===== ВИД ПРИЗОВ ===== */
+function look(p) {
+  if (p.type === "deposit_bonus") return { g: "linear-gradient(135deg,#f02fc2,#f0642b)", fg: "#fff", big: "+" + p.amount + "%", small: "к депозиту" };
+  if (p.type === "sub_days") return { g: "linear-gradient(135deg,#22d3c5,#0e8f9c)", fg: "#fff", big: "+" + p.amount, small: plural(p.amount, "день", "дня", "дней") };
+  const a = p.amount;
+  const g = a >= 150 ? "linear-gradient(135deg,#ffd24a,#ff8a1f)"
+          : a >= 100 ? "linear-gradient(135deg,#a066ff,#5b3bff)"
+          : a >= 50  ? "linear-gradient(135deg,#4d94ff,#2f5bff)"
+          : a >= 20  ? "linear-gradient(135deg,#2fd08a,#0e9a63)"
+          :            "linear-gradient(135deg,#737a8a,#4b515e)";
+  return { g, fg: a >= 150 ? "#2b1600" : "#fff", big: String(a), small: "₽" };
+}
+
+function tile(p, cls) {
+  const L = look(p);
+  const el = document.createElement("div");
+  el.className = cls;
+  const d = document.createElement("div");
+  d.className = "disc";
+  d.style.background = L.g;
+  d.style.color = L.fg;
+  const big = document.createElement("span"); big.className = "big"; big.textContent = L.big;
+  const small = document.createElement("span"); small.className = "small"; small.textContent = L.small;
+  d.append(big, small);
+  el.append(d);
+  return el;
+}
+
+const totalWeight = () => S.prizes.reduce((s, p) => s + p.weight, 0) || 1;
+const chance = (p) => nf.format(Math.round(p.weight / totalWeight() * 1000) / 10) + "%";
+
+/* ===== ЛЕНТА ===== */
+let cards = [], pos = 0;
+const centerX = () => $("reel").clientWidth / 2;
+const offsetFor = (i) => i * STEP + CARD / 2 - centerX();
+const setPos = (x) => { pos = x; $("strip").style.transform = "translate3d(" + (-x) + "px,0,0)"; };
+const idxAt = () => Math.round((pos + centerX() - CARD / 2) / STEP);
+
+function renderStrip(list, focus) {
+  $("strip").replaceChildren(...list.map((p) => tile(p, "card")));
+  cards = list;
+  S.focusIdx = focus;
+  setPos(offsetFor(focus));
+}
+
+function renderIdle() {
+  const base = S.prizes;
+  renderStrip([...base, ...base, ...base], base.length);   // в рамке — первый (главный) приз
+}
+
+function buildSpinStrip(winner) {
+  const base = S.prizes;
+  const list = [...base, ...base, ...base];               // то, что уже на экране — старт без скачка
+  let prev = list[list.length - 1];
+  for (let i = 0; i < 40; i++) {
+    let p;
+    do { p = base[Math.floor(Math.random() * base.length)]; } while (p === prev && base.length > 1);
+    list.push(p); prev = p;
+  }
+  const winIdx = list.length;
+  list.push(winner);
+  for (let i = 0; i < 6; i++) list.push(base[Math.floor(Math.random() * base.length)]);
+  return { list, winIdx };
+}
+
+function animate(from, to, ms, onFrame) {
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    (function frame(now) {
+      const t = Math.min(1, (now - t0) / ms);
+      setPos(from + (to - from) * (1 - Math.pow(1 - t, 4)));   // плавное торможение
+      if (onFrame) onFrame();
+      if (t < 1) requestAnimationFrame(frame); else resolve();
+    })(t0);
+  });
+}
+
+/* ===== ТЕКСТЫ ===== */
+function setTitle(t) {
+  const el = $("title");
+  el.style.fontSize = "";
+  el.textContent = t;
+  let fs = parseFloat(getComputedStyle(el).fontSize);
+  while (el.scrollWidth > el.clientWidth && fs > 20) { fs -= 1; el.style.fontSize = fs + "px"; }
+}
+const setChip = (t) => { $("chip").textContent = t; };
+
+function setNote(text, kind) { S.noteOverride = text ? { text, kind } : null; renderNote(); }
+function renderNote() {
+  let n = S.noteOverride;
+  if (!n) {
+    if (S.fatal) n = { text: S.fatal.msg, kind: "err" };
+    else if (S.demo) n = { text: (tg && tg.initData) ? "Приложение не настроено: в index.html не указан API_BASE. Сейчас это демо — призы не начисляются." : "Демо-режим: призы не начисляются. Откройте приложение из бота, чтобы играть по-настоящему.", kind: "" };
+    else if (S.result) n = { text: S.result.message, kind: "ok" };
+    else if (S.loaded && !S.hasTicket) n = { text: "Новый билетик появится в 14:00 по Москве.", kind: "" };
+    else if (S.pendingBonus) n = { text: "У вас активен бонус +" + S.pendingBonus + "% к следующему пополнению баланса.", kind: "" };
+    else n = { text: "", kind: "" };
+  }
+  const el = $("note");
+  el.textContent = n.text;
+  el.className = "note" + (n.kind ? " " + n.kind : "");
+}
+
+function fmtHMS(sec) {
+  sec = Math.max(0, Math.floor(sec));
+  const p = (v) => String(v).padStart(2, "0");
+  return p(Math.floor(sec / 3600)) + ":" + p(Math.floor(sec % 3600 / 60)) + ":" + p(sec % 60);
+}
+const nowSrv = () => Date.now() / 1000 + S.skew;
+
+function fmtDate(ts) {
+  const d = new Date(ts * 1000), now = new Date();
+  const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(now) - day(d)) / 86400000);
+  if (diff === 0) return "сегодня";
+  if (diff === 1) return "вчера";
+  return String(d.getDate()).padStart(2, "0") + "." + String(d.getMonth() + 1).padStart(2, "0");
+}
+
+/* ===== ОТРИСОВКА ===== */
+function renderInfo() {
+  if (S.result) { setTitle(S.result.prize.label); setChip("Шанс " + chance(S.result.prize)); return; }
+  const top = S.prizes.filter((p) => p.type === "balance").sort((a, b) => b.amount - a.amount)[0];
+  setTitle(top ? "Главный приз — " + money(top.amount) : "Ежедневная рулетка");
+  setChip(!S.loaded ? "Загрузка…" : S.hasTicket ? "Билетик: 1" : "Билетик использован");
+}
+
+function renderBalance() {
+  const el = $("balance");
+  if (S.demo) { el.hidden = false; el.textContent = "Демо"; }
+  else if (S.balance != null) { el.hidden = false; el.textContent = "Баланс " + money(S.balance); }
+  else el.hidden = true;
+}
+
+function renderLists() {
+  const odds = $("odds");
+  odds.replaceChildren(...S.prizes.map((p) => {
+    const li = document.createElement("li"); li.className = "row";
+    const name = document.createElement("span"); name.className = "name"; name.textContent = p.label;
+    const meta = document.createElement("span"); meta.className = "meta"; meta.textContent = chance(p);
+    li.append(tile(p, "mini"), name, meta);
+    return li;
+  }));
+  const hist = $("history");
+  const items = S.history.slice(0, 10);
+  hist.replaceChildren(...items.map((h) => {
+    const li = document.createElement("li"); li.className = "row";
+    const name = document.createElement("span"); name.className = "name"; name.textContent = h.label;
+    const meta = document.createElement("span"); meta.className = "meta"; meta.textContent = fmtDate(h.at);
+    li.append(name, meta);
+    return li;
+  }));
+  $("historyEmpty").hidden = items.length > 0;
+}
+
+function renderCta() {
+  const b = $("cta");
+  if (S.fatal) { b.disabled = false; b.textContent = S.fatal.cta; return; }
+  if (S.busy) { b.disabled = true; b.textContent = "Крутится…"; return; }
+  if (!S.loaded) { b.disabled = true; b.textContent = "Загрузка…"; return; }
+  if (S.hasTicket) { b.disabled = false; b.textContent = S.demo ? "Крутить (демо)" : "Крутить"; return; }
+  b.disabled = true;
+  b.textContent = "Следующий билет через " + fmtHMS(S.nextAt - nowSrv());
+}
+
+function renderAll() { renderInfo(); renderBalance(); renderLists(); renderCta(); renderNote(); }
+
+/* ===== СЕТЬ ===== */
+async function api(path) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  try {
+    const res = await fetch(API_BASE.replace(/\/+$/, "") + path, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ initData: tg.initData }), signal: ctrl.signal
+    });
+    let data = null;
+    try { data = await res.json(); } catch (_) {}
+    if (!data) throw new Error("bad_response");
+    return data;
+  } finally { clearTimeout(timer); }
+}
+
+function fail(code, retry) {
+  S.loaded = true;
+  S.fatal = { msg: ERR[code] || ERR.server_error, cta: retry ? "Повторить" : "Вернуться в бота", retry: !!retry };
+  renderAll();
+}
+
+function applyStatus(d) {
+  if (d.prizes && d.prizes.length) S.prizes = d.prizes;
+  S.hasTicket = !!d.has_ticket;
+  S.nextAt = d.next_ticket_at;
+  S.skew = d.server_time - Date.now() / 1000;
+  S.balance = d.balance;
+  S.history = d.history || [];
+  S.pendingBonus = d.pending_deposit_bonus;
+  S.loaded = true;
+  S.fatal = null;
+  if (!S.busy && !S.result) renderIdle();
+  renderAll();
+}
+
+async function loadStatus() {
+  try {
+    const d = await api("/api/roulette/status");
+    if (!d.ok) return fail(d.error, false);
+    applyStatus(d);
+  } catch (_) { fail("network", true); }
+}
+
+/* ===== ДЕМО ===== */
+function demoSpin() {
+  let r = Math.random() * totalWeight(), win = S.prizes[S.prizes.length - 1];
+  for (const p of S.prizes) { if ((r -= p.weight) < 0) { win = p; break; } }
+  return { ok: true, prize: win, message: "Это демо — приз не начислен.", balance: null, next_ticket_at: 0 };
+}
+
+/* ===== ПРОКРУТКА ===== */
+let lastTick = 0, lastIdx = -1;
+function onFrame() {
+  const i = idxAt();
+  if (i === lastIdx || !cards[i]) return;
+  lastIdx = i;
+  setTitle(cards[i].label);
+  setChip("Шанс " + chance(cards[i]));
+  const now = performance.now();
+  if (now - lastTick > 55) { lastTick = now; tgTry(() => tg.HapticFeedback.selectionChanged()); }
+}
+
+function burst(colors) {
+  if (reduced) return;
+  const wrap = $("reelWrap");
+  for (let i = 0; i < 26; i++) {
+    const s = document.createElement("i");
+    const a = Math.random() * Math.PI * 2, r = 70 + Math.random() * 90;
+    s.className = "spark";
+    s.style.setProperty("--x", Math.cos(a) * r + "px");
+    s.style.setProperty("--y", Math.sin(a) * r * 0.7 + "px");
+    s.style.setProperty("--c", colors[i % colors.length]);
+    wrap.appendChild(s);
+    setTimeout(() => s.remove(), 1000);
+  }
+}
+
+async function spin() {
+  if (S.busy || !S.hasTicket || !S.loaded || S.fatal) return;
+  S.busy = true; S.result = null; setNote("");
+  renderCta();
+  tgTry(() => tg.HapticFeedback.impactOccurred("medium"));
+  tgTry(() => tg.enableClosingConfirmation());
+
+  let res;
+  try { res = S.demo ? demoSpin() : await api("/api/roulette/spin"); }
+  catch (_) { S.busy = false; tgTry(() => tg.disableClosingConfirmation()); setNote(ERR.network, "err"); renderCta(); return; }
+
+  if (!res.ok) {
+    S.busy = false; tgTry(() => tg.disableClosingConfirmation());
+    if (res.error === "no_ticket") { S.hasTicket = false; S.nextAt = res.next_ticket_at; setNote(""); }
+    else if (res.error === "bad_init_data" || res.error === "not_registered") { fail(res.error, false); return; }
+    else setNote(ERR[res.error] || ERR.server_error, "err");
+    renderAll();
+    return;
+  }
+
+  const winner = S.prizes.find((p) => p.key === res.prize.key) || res.prize;
+  const { list, winIdx } = buildSpinStrip(winner);
+  renderStrip(list, S.prizes.length);
+  lastIdx = -1;
+  await animate(pos, offsetFor(winIdx), reduced ? 700 : 5800, onFrame);
+  setPos(offsetFor(winIdx));
+  S.focusIdx = winIdx;
+
+  S.busy = false;
+  S.result = { prize: winner, message: res.message };
+  if (!S.demo) {
+    S.hasTicket = false;
+    S.nextAt = res.next_ticket_at;
+    S.balance = res.balance;
+    S.history.unshift({ label: winner.label, at: Math.floor(nowSrv()) });
+  }
+  tgTry(() => tg.disableClosingConfirmation());
+  tgTry(() => tg.HapticFeedback.notificationOccurred("success"));
+  const frame = $("frame");
+  frame.classList.remove("win"); void frame.offsetWidth; frame.classList.add("win");
+  frame.addEventListener("animationend", () => frame.classList.remove("win"), { once: true });
+  if (winner.type === "balance" && winner.amount >= 50) burst(["#ffd24a", "#ff8a1f", "#4d94ff", "#a066ff", "#fff"]);
+  renderAll();
+}
+
+/* ===== ЗАПУСК ===== */
+$("cta").addEventListener("click", () => {
+  if (S.fatal) {
+    if (S.fatal.retry) { S.fatal = null; S.loaded = false; renderAll(); loadStatus(); }
+    else tgTry(() => tg.close());
+    return;
+  }
+  spin();
+});
+
+setInterval(() => {
+  if (S.busy || S.fatal || !S.loaded || S.hasTicket || S.demo) return;
+  const left = S.nextAt - nowSrv();
+  if (left > 0) { renderCta(); return; }
+  if (Date.now() - S.lastRefresh > 3000) { S.lastRefresh = Date.now(); loadStatus(); }   // билет должен появиться — спрашиваем сервер
+}, 250);
+
+window.addEventListener("resize", () => { if (!S.busy) setPos(offsetFor(S.focusIdx)); });
+
+if (tg) {
+  tgTry(() => tg.ready());
+  tgTry(() => tg.expand());
+  tgTry(() => tg.setHeaderColor("#232326"));
+  tgTry(() => tg.setBackgroundColor("#232326"));
+  tgTry(() => tg.setBottomBarColor("#232326"));
+  tgTry(() => tg.disableVerticalSwipes());
+}
+
+renderIdle();
+renderAll();
+if (S.demo) { S.loaded = true; renderAll(); } else { loadStatus(); }
+</script>
+</body>
+</html>
