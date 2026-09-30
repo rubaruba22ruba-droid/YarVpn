@@ -1,117 +1,111 @@
 <!doctype html>
 <!--
-  ЕЖЕДНЕВНАЯ РУЛЕТКА — мини-апп Telegram для бота YarVpn (один файл, без сборки)
+  ЕЖЕДНЕВНАЯ РУЛЕТКА — мини-апп Telegram для бота YarVpn (один файл, без сборки).
+  Работает с API бота (webserver.py: /api/roulette/status и /api/roulette/spin). Демо-режима НЕТ: без Telegram и без API
+  приложение честно говорит об этом, а не крутит «ненастоящее» колесо. Призы и шансы приходят с сервера (config.ROULETTE_PRIZES).
 
-  КАК ЗАЛИТЬ НА GITHUB PAGES (5 минут):
-   1. github.com → New repository → имя, например, yarvpn-roulette → Public → Create repository.
-   2. На странице репозитория: «uploading an existing file» → перетащи ЭТОТ файл (index.html) → Commit changes.
-   3. Settings → Pages → Build and deployment → Source: «Deploy from a branch» → Branch: main, папка / (root) → Save.
-   4. Через 1–2 минуты сайт откроется по адресу https://ТВОЙ_НИК.github.io/yarvpn-roulette/ — это и есть ссылка на мини-апп.
-   5. Впиши её в config.py бота: ROULETTE_WEBAPP_URL = "https://ТВОЙ_НИК.github.io/yarvpn-roulette/"
-      и перезапусти бота — кнопка «Ежедневная рулетка» в меню оживёт.
-
-  ПЕРЕД ЗАЛИВКОЙ впиши ниже в API_BASE публичный HTTPS-адрес бота — тот же, что PUBLIC_BASE_URL в config.py.
-  Пока API_BASE пустой или страница открыта не из Telegram — работает ДЕМО: колесо крутится, но призы не начисляются.
+  КАК ПОДКЛЮЧИТЬ (один раз):
+   1. Адрес API берётся из файла https://yarvpn.best/api.json (поле "api" — HTTPS-адрес воркера Cloudflare, см. worker/ в репозитории сайта).
+      Тот же адрес использует вход на сайте, поэтому править в этом файле ничего не нужно. Запасной вариант — константа API_BASE ниже.
+   2. Залейте этот файл как index.html в репозиторий мини-аппа (rubaruba22ruba-droid/YarVpn) или оставьте в сайте: /miniapp/.
+   3. В config.py бота: ROULETTE_WEBAPP_URL = "<адрес, где лежит файл>" и перезапустите бота.
 -->
 <html lang="ru">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#232326">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#030716">
 <title>Ежедневная рулетка — YarVpn</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-  :root {
-    --bg: #232326;
-    --surface: #2e2e32;
-    --surface-2: #38383d;
-    --line: #333338;
-    --text: #ececf1;
-    --muted: #8e8e98;
-    --blue: #3366ff;
-    --blue-press: #2957e6;
-    --danger: #ff8a8a;
-    --ok: #5be0a6;
-    --card: 102px;
-    --gap: 12px;
-    --safe-b: env(safe-area-inset-bottom, 0px);
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* шрифты берём с сайта YarVpn; если сайт недоступен — системные */
+  @font-face{font-family:"Cormorant Garamond";font-weight:600;font-display:swap;src:url(https://yarvpn.best/assets/fonts/cormorant-garamond-latin-600-normal.woff2) format("woff2");unicode-range:U+0000-00FF,U+2013-2026,U+20BD}
+  @font-face{font-family:"Cormorant Garamond";font-weight:600;font-display:swap;src:url(https://yarvpn.best/assets/fonts/cormorant-garamond-cyrillic-600-normal.woff2) format("woff2");unicode-range:U+0400-04FF,U+2116}
+  @font-face{font-family:"Cormorant Garamond";font-style:italic;font-weight:600;font-display:swap;src:url(https://yarvpn.best/assets/fonts/cormorant-garamond-latin-600-italic.woff2) format("woff2");unicode-range:U+0000-00FF,U+2013-2026,U+20BD}
+  @font-face{font-family:"Cormorant Garamond";font-style:italic;font-weight:600;font-display:swap;src:url(https://yarvpn.best/assets/fonts/cormorant-garamond-cyrillic-600-italic.woff2) format("woff2");unicode-range:U+0400-04FF,U+2116}
+  @font-face{font-family:"Manrope";font-weight:200 800;font-display:swap;src:url(https://yarvpn.best/assets/fonts/manrope-latin-wght-normal.woff2) format("woff2");unicode-range:U+0000-00FF,U+2013-2026,U+20BD}
+  @font-face{font-family:"Manrope";font-weight:200 800;font-display:swap;src:url(https://yarvpn.best/assets/fonts/manrope-cyrillic-wght-normal.woff2) format("woff2");unicode-range:U+0400-04FF,U+2116}
+
+  :root{
+    --bg:#030716; --line:rgba(255,255,255,.12); --line2:rgba(255,255,255,.2);
+    --text:#f4f6fc; --muted:rgba(214,222,242,.8); --navy:#070d20; --danger:#ffc9b8; --ok:#c6f6e2; --gold:#d9b26f;
+    --safe-b:env(safe-area-inset-bottom,0px);
+    --serif:"Cormorant Garamond","Iowan Old Style",Georgia,serif;
+    font-family:"Manrope",-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,Arial,sans-serif;
   }
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; background: var(--bg); color: var(--text); }
-  body { min-height: 100vh; font-size: 16px; line-height: 1.4; -webkit-font-smoothing: antialiased; overscroll-behavior-y: none; }
-  main { max-width: 520px; margin: 0 auto; padding: 8px 20px calc(130px + var(--safe-b)); }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html{background:var(--bg)}
+  html,body{margin:0;color:var(--text);overflow-x:clip}
+  body{min-height:100vh;font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased;overscroll-behavior-y:none;}
+  /* небо: картинка облаков, нарисованная один раз, плавно дрейфует (только transform — без рывков) */
+  .sky{position:fixed;inset:0;z-index:-1;overflow:hidden;background:radial-gradient(120% 90% at 75% 20%,#0a1a44 0%,#030716 55%,#010208 100%)}
+  .sky canvas{position:absolute;left:-3%;top:-3%;width:106%;height:106%;animation:drift 120s ease-in-out infinite alternate;will-change:transform}
+  @keyframes drift{from{transform:translate3d(-1%,0,0) scale(1.01)}to{transform:translate3d(1%,-1%,0) scale(1.04)}}
+  #fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:5}
+  main{max-width:520px;margin:0 auto;padding:6px 20px calc(120px + var(--safe-b))}
 
-  .top { display: flex; align-items: center; justify-content: space-between; min-height: 48px; }
-  .brand { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
-  .balance { background: var(--surface); border-radius: 16px; padding: 8px 14px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .top{display:flex;align-items:center;justify-content:space-between;min-height:54px}
+  .brand{font:600 30px/1 var(--serif);letter-spacing:-.01em}
+  .brand em{font-style:italic;font-weight:600}
+  .balance{background:rgba(255,255,255,.06);border:1px solid var(--line2);border-radius:99px;padding:9px 16px;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;box-shadow:0 8px 24px -12px rgba(6,26,80,.6)}
+  .balance span{color:var(--muted);font-weight:600}
 
-  /* лента призов: карточки, рамка-выделение по центру и указатель сверху — как в GetGems */
-  .reel-wrap { position: relative; height: 150px; margin: 18px -20px 0; user-select: none; -webkit-user-select: none; }
-  .reel { position: absolute; left: 0; right: 0; top: 0; bottom: 0; overflow: hidden; }
-  .strip { position: absolute; left: 0; top: 24px; display: flex; gap: var(--gap); will-change: transform; }
-  .card { flex: 0 0 var(--card); width: var(--card); height: var(--card); border-radius: 22px; background: var(--surface); display: grid; place-items: center; }
-  .disc { width: 84px; height: 84px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; text-shadow: 0 1px 2px rgba(0, 0, 0, .18); }
-  .disc .big { font-size: 27px; font-weight: 800; line-height: 1; letter-spacing: -0.03em; }
-  .disc .small { margin-top: 3px; font-size: 11px; font-weight: 600; opacity: .92; }
-  .frame { position: absolute; left: 50%; top: 19px; width: 112px; height: 112px; margin-left: -56px; border: 5px solid var(--blue); border-radius: 27px; box-shadow: inset 0 0 0 3px #fff; pointer-events: none; }
-  .frame.win { animation: pulse .9s ease-out; }
-  .pointer { position: absolute; left: 50%; top: 5px; width: 40px; height: 34px; margin-left: -20px; pointer-events: none; }
-  .spark { position: absolute; left: 50%; top: 75px; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--c); pointer-events: none; animation: fly .9s ease-out forwards; }
-  @keyframes pulse { from { box-shadow: inset 0 0 0 3px #fff, 0 0 0 0 rgba(51, 102, 255, .75); } to { box-shadow: inset 0 0 0 3px #fff, 0 0 0 28px rgba(51, 102, 255, 0); } }
-  @keyframes fly { to { transform: translate(var(--x), var(--y)) scale(.35); opacity: 0; } }
+  .wheel-box{position:relative;margin:14px auto 0;width:100%;max-width:400px;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+  #wheel{display:block;pointer-events:none}
+  .info{margin-top:26px;text-align:center}
+  h1{margin:0;display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:600 clamp(34px,10.4vw,48px)/1.08 var(--serif);letter-spacing:-.02em;font-variant-numeric:lining-nums}
+  .chip{display:inline-flex;margin-top:12px;padding:8px 16px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid var(--line2);font-size:14px;font-weight:700}
+  .note{margin:14px auto 0;max-width:420px;min-height:1.45em;font-size:15px;font-weight:500;color:var(--muted)}
+  .note.ok{color:var(--ok);font-weight:700}
+  .note.err{color:var(--danger);font-weight:700}
 
-  .info { margin-top: 26px; }
-  h1 { margin: 0; display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: clamp(26px, 8.6vw, 34px); line-height: 1.12; font-weight: 800; letter-spacing: -0.03em; }
-  .chip { display: inline-block; margin-top: 14px; padding: 9px 16px; border-radius: 16px; background: var(--surface); font-size: 16px; font-weight: 600; }
-  .byline { display: flex; align-items: center; gap: 8px; margin-top: 14px; color: var(--muted); font-size: 20px; font-weight: 500; }
-  .note { margin: 16px 0 0; min-height: 1.4em; font-size: 15px; color: var(--muted); }
-  .note.ok { color: var(--ok); }
-  .note.err { color: var(--danger); }
+  section.block{margin-top:34px;padding:22px 20px 12px;border-radius:28px;background:linear-gradient(140deg,rgba(15,22,46,.8),rgba(8,13,30,.68));border:1px solid rgba(255,255,255,.11);box-shadow:0 24px 50px -30px rgba(0,0,0,.8)}
+  h2{margin:0 0 6px;font:600 30px/1.1 var(--serif);letter-spacing:-.01em}
+  ul{list-style:none;margin:0;padding:0}
+  .row{display:flex;align-items:center;gap:14px;padding:12px 0;border-top:1px solid var(--line)}
+  .row:first-child{border-top:0}
+  .mini{flex:0 0 52px;width:52px;height:52px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#2a3560,#141c3c 70%,#0b1130);color:#fff;border:1px solid rgba(255,255,255,.22);display:grid;place-items:center;text-align:center;color:var(--navy);text-shadow:none;box-shadow:0 8px 16px -8px rgba(4,20,70,.7)}
+  .mini.hi{background:radial-gradient(circle at 35% 30%,#f7e8c2,#d9b26f 70%,#a67c35);color:#1b1407}
+  .mini .big{font-size:14px;font-weight:800;letter-spacing:-.03em;line-height:1}
+  .mini .small{display:none}
+  .row .name{flex:1;font-weight:600}
+  .row .meta{color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums}
+  .empty{margin:4px 0 12px;color:var(--muted);font-weight:500}
+  .fair{margin:30px 4px 0;color:var(--muted);font-size:14px;font-weight:500;text-align:center}
 
-  section.block { margin-top: 34px; }
-  h2 { margin: 0 0 6px; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
-  ul { list-style: none; margin: 0; padding: 0; }
-  .row { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); }
-  .row:first-child { border-top: 0; }
-  .mini { flex: 0 0 44px; width: 44px; height: 44px; border-radius: 14px; background: var(--surface); display: grid; place-items: center; }
-  .mini .disc { width: 34px; height: 34px; }
-  .mini .disc .big { font-size: 12px; }
-  .mini .disc .small { display: none; }
-  .row .name { flex: 1; font-weight: 600; }
-  .row .meta { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
-  .empty { margin: 4px 0 0; color: var(--muted); }
-  .fair { margin: 34px 0 0; color: var(--muted); font-size: 14px; }
+  .bar{position:fixed;left:0;right:0;bottom:0;padding:34px 20px calc(14px + var(--safe-b));background:linear-gradient(to top,rgba(1,2,8,.92) 30%,rgba(1,2,8,0));pointer-events:none;z-index:4}
+  .bar button{pointer-events:auto;display:block;width:100%;max-width:480px;height:60px;margin:0 auto;border:0;border-radius:99px;background:#fff;color:var(--navy);font:inherit;font-size:16.5px;font-weight:700;
+    font-variant-numeric:tabular-nums;cursor:pointer;box-shadow:0 14px 34px -12px rgba(0,0,0,.8);transition:transform .25s,background .25s;text-shadow:none}
+  .bar button:active{transform:scale(.985)}
+  .bar button:disabled{background:#0d1430;color:#d6def2;box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);cursor:default;transform:none}
+  button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 
-  .bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 30px 20px calc(14px + var(--safe-b)); background: linear-gradient(to top, var(--bg) 62%, rgba(35, 35, 38, 0)); pointer-events: none; }
-  .bar button { pointer-events: auto; display: block; width: 100%; max-width: 480px; height: 60px; margin: 0 auto; border: 0; border-radius: 20px; background: var(--blue); color: #fff; font: inherit; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; }
-  .bar button:active { background: var(--blue-press); transform: scale(.99); }
-  .bar button:disabled { background: var(--surface-2); color: var(--muted); cursor: default; transform: none; }
-  button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
-
-  @media (prefers-reduced-motion: reduce) { .frame.win { animation: none; } .spark { display: none; } }
+  /* экран «открыто не из Telegram» */
+  .out{display:none;min-height:70vh;flex-direction:column;justify-content:center;gap:14px}
+  .out h1{white-space:normal;overflow:visible}
+  .out p{margin:0;color:var(--muted);max-width:380px;font-weight:500}
+  .out a{align-self:flex-start;margin-top:8px;display:inline-flex;align-items:center;height:54px;padding:0 28px;border-radius:99px;background:#fff;color:var(--navy);font-weight:700;text-decoration:none;text-shadow:none;box-shadow:0 0 0 4px rgba(255,255,255,.35)}
+  body.outside main>:not(.out):not(.top){display:none}
+  body.outside .out{display:flex}
+  body.outside .bar{display:none}
+  @media (prefers-reduced-motion:reduce){.sky canvas{animation:none}}
 </style>
 </head>
 <body>
+<div class="sky" aria-hidden="true"><canvas id="skyCv"></canvas></div>
+<canvas id="fx" aria-hidden="true"></canvas>
 <main>
   <header class="top">
-    <div class="brand">Ежедневная рулетка</div>
+    <div class="brand">Yar<em>Vpn</em></div>
     <div class="balance" id="balance" hidden></div>
   </header>
 
-  <div class="reel-wrap" id="reelWrap" aria-hidden="true">
-    <div class="reel" id="reel"><div class="strip" id="strip"></div></div>
-    <div class="frame" id="frame"></div>
-    <svg class="pointer" viewBox="0 0 40 34" xmlns="http://www.w3.org/2000/svg"><path d="M6 4h28a3 3 0 0 1 2.4 4.8L22.4 28.6a3 3 0 0 1-4.8 0L3.6 8.8A3 3 0 0 1 6 4z" fill="#3366ff" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></svg>
-  </div>
+  <div class="wheel-box" id="wheelBox"><canvas id="wheel" role="img" aria-label="Колесо ежедневной рулетки"></canvas></div>
 
   <div class="info">
     <h1 id="title">Ежедневная рулетка</h1>
     <div class="chip" id="chip">Загрузка…</div>
-    <div class="byline">YarVpn
-      <svg width="22" height="22" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-label="Проверенный сервис" role="img"><path fill="#3366ff" d="M12 1.5l2.6 1.9 3.2-.1 1 3 2.6 1.9-1 3.1 1 3.1-2.6 1.9-1 3-3.2-.1L12 22.5l-2.6-1.9-3.2.1-1-3L2.6 15.8l1-3.1-1-3.1 2.6-1.9 1-3 3.2.1z"/><path d="M8 12.3l2.7 2.7 5.5-5.5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </div>
     <p class="note" id="note" role="status" aria-live="polite"></p>
   </div>
 
@@ -127,6 +121,12 @@
   </section>
 
   <p class="fair">Приз выбирает сервер бота, а не приложение, поэтому исход подкрутить нельзя. Новый билетик каждый день в 14:00 по Москве.</p>
+
+  <div class="out" id="out">
+    <h1>Откройте рулетку из бота</h1>
+    <p>Ежедневная рулетка работает внутри Telegram: приз выбирает сервер бота и сразу начисляет его на ваш аккаунт. Откройте бота и нажмите «Ежедневная рулетка» в главном меню.</p>
+    <a href="https://t.me/yarVpnRubot">Открыть бота</a>
+  </div>
 </main>
 
 <div class="bar"><button id="cta" type="button" disabled>Загрузка…</button></div>
@@ -135,25 +135,24 @@
 "use strict";
 
 /* ===== НАСТРОЙКА ===== */
-// Публичный HTTPS-адрес бота (PUBLIC_BASE_URL из config.py), без слэша на конце. Пример: "https://api.yarlik.space"
-const API_BASE = "";
-
-/* Призы по умолчанию — для демо и на случай, пока сервер не ответил. В рабочем режиме список и шансы приходят с сервера. */
-const DEFAULT_PRIZES = [
-  { key: "cash150", type: "balance",       amount: 150, weight: 1,  label: "150 ₽ на баланс" },
-  { key: "cash100", type: "balance",       amount: 100, weight: 3,  label: "100 ₽ на баланс" },
-  { key: "cash50",  type: "balance",       amount: 50,  weight: 4,  label: "50 ₽ на баланс" },
-  { key: "cash20",  type: "balance",       amount: 20,  weight: 5,  label: "20 ₽ на баланс" },
-  { key: "sub1d",   type: "sub_days",      amount: 1,   weight: 15, label: "Подписка на 1 день" },
-  { key: "cash5",   type: "balance",       amount: 5,   weight: 25, label: "5 ₽ на баланс" },
-  { key: "promo20", type: "deposit_bonus", amount: 20,  weight: 47, label: "Промокод +20% к депозиту" }
-];
+// Адрес API бота берётся из https://yarvpn.best/api.json (поле "api", HTTPS-адрес воркера) — тот же, что использует вход на сайте.
+// Запасной вариант — вписать HTTPS-адрес сюда (без слэша на конце).
+let API_BASE = "";
+const CFG_URL = "https://yarvpn.best/api.json";
+async function resolveApi() {
+  try {
+    const r = await fetch(CFG_URL, { cache: "no-store" });
+    const j = await r.json();
+    if (j && typeof j.api === "string" && j.api.trim()) API_BASE = j.api.trim().replace(/\/+$/, "");
+  } catch (_) { /* остаётся запасной адрес */ }
+}
 
 const ERR = {
   bad_init_data: "Не удалось подтвердить вас в Telegram. Закройте приложение и откройте его снова из бота.",
   not_registered: "Сначала запустите бота: отправьте ему /start и примите условия. Потом вернитесь за билетиком.",
   server_error: "На сервере что-то пошло не так, билетик не потрачен. Попробуйте ещё раз через минуту.",
-  network: "Нет связи с сервером. Проверьте интернет и откройте приложение снова — если приз уже выпал, он на балансе."
+  network: "Нет связи с сервером. Проверьте интернет и откройте приложение снова — если приз уже выпал, он на балансе.",
+  not_configured: "Рулетка ещё не подключена к боту: не указан адрес API. Напишите в поддержку — @entoni."
 };
 
 /* ===== СОСТОЯНИЕ И УТИЛИТЫ ===== */
@@ -162,89 +161,205 @@ const tg = window.Telegram && window.Telegram.WebApp;
 const nf = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });
 const money = (v) => nf.format(v) + " ₽";
 const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-const CARD = 102, STEP = CARD + 12;
 const plural = (n, a, b, c) => { const m10 = n % 10, m100 = n % 100; return m10 === 1 && m100 !== 11 ? a : (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) ? b : c; };
 const tgTry = (fn) => { try { fn(); } catch (_) {} };
 
 const S = {
-  prizes: DEFAULT_PRIZES, hasTicket: true, nextAt: 0, skew: 0, balance: null, history: [], pendingBonus: null,
-  loaded: false, busy: false, result: null, fatal: null, noteOverride: null,
-  demo: !(tg && tg.initData && API_BASE), focusIdx: 0, lastRefresh: 0
+  prizes: [], hasTicket: false, nextAt: 0, skew: 0, balance: null, history: [], pendingBonus: null,
+  loaded: false, busy: false, result: null, fatal: null, noteOverride: null, lastRefresh: 0, focusIdx: 0
 };
+const OUTSIDE = !(tg && tg.initData);   // открыто не из Telegram — играть нельзя, и это честно сообщаем
 
-/* ===== ВИД ПРИЗОВ ===== */
+/* ===== ВИД ПРИЗОВ (тексты — из данных сервера) ===== */
 function look(p) {
-  if (p.type === "deposit_bonus") return { g: "linear-gradient(135deg,#f02fc2,#f0642b)", fg: "#fff", big: "+" + p.amount + "%", small: "к депозиту" };
-  if (p.type === "sub_days") return { g: "linear-gradient(135deg,#22d3c5,#0e8f9c)", fg: "#fff", big: "+" + p.amount, small: plural(p.amount, "день", "дня", "дней") };
-  const a = p.amount;
-  const g = a >= 150 ? "linear-gradient(135deg,#ffd24a,#ff8a1f)"
-          : a >= 100 ? "linear-gradient(135deg,#a066ff,#5b3bff)"
-          : a >= 50  ? "linear-gradient(135deg,#4d94ff,#2f5bff)"
-          : a >= 20  ? "linear-gradient(135deg,#2fd08a,#0e9a63)"
-          :            "linear-gradient(135deg,#737a8a,#4b515e)";
-  return { g, fg: a >= 150 ? "#2b1600" : "#fff", big: String(a), small: "₽" };
+  if (p.type === "deposit_bonus") return { big: "+" + p.amount + "%", small: "к депозиту", hi: false };
+  if (p.type === "sub_days") return { big: "+" + p.amount, small: plural(p.amount, "день", "дня", "дней"), hi: false };
+  return { big: String(p.amount), small: "₽", hi: p.amount >= 100 };
 }
-
 function tile(p, cls) {
   const L = look(p);
   const el = document.createElement("div");
-  el.className = cls;
-  const d = document.createElement("div");
-  d.className = "disc";
-  d.style.background = L.g;
-  d.style.color = L.fg;
+  el.className = cls + (L.hi ? " hi" : "");
   const big = document.createElement("span"); big.className = "big"; big.textContent = L.big;
   const small = document.createElement("span"); small.className = "small"; small.textContent = L.small;
-  d.append(big, small);
-  el.append(d);
+  el.append(big, small);
   return el;
 }
-
 const totalWeight = () => S.prizes.reduce((s, p) => s + p.weight, 0) || 1;
 const chance = (p) => nf.format(Math.round(p.weight / totalWeight() * 1000) / 10) + "%";
 
-/* ===== ЛЕНТА ===== */
-let cards = [], pos = 0;
-const centerX = () => $("reel").clientWidth / 2;
-const offsetFor = (i) => i * STEP + CARD / 2 - centerX();
-const setPos = (x) => { pos = x; $("strip").style.transform = "translate3d(" + (-x) + "px,0,0)"; };
-const idxAt = () => Math.round((pos + centerX() - CARD / 2) / STEP);
+/* ===== КОЛЕСО (canvas) ===== */
+const TAU = Math.PI * 2, PAD = 34;
+const cv = $("wheel"), cx = cv.getContext("2d");
+let DPR = 1, SZ = 320, face = null, rot = 0, vel = 0, spinning = false, glow = 0, glowIdx = -1;
+let pAng = 0, pVel = 0, lastFrac = 0, lastTick = 0, idleOn = true;
+const segCount = () => Math.max(1, S.prizes.length);
 
-function renderStrip(list, focus) {
-  $("strip").replaceChildren(...list.map((p) => tile(p, "card")));
-  cards = list;
-  S.focusIdx = focus;
-  setPos(offsetFor(focus));
+function fitCanvas() {
+  const w = Math.min($("wheelBox").clientWidth, 400);
+  DPR = Math.min(window.devicePixelRatio || 1, 2.5);
+  SZ = w;
+  const tot = w + PAD * 2;
+  cv.style.width = tot + "px"; cv.style.height = tot + "px"; cv.style.margin = (-PAD + 14) + "px " + (-PAD) + "px " + (-PAD) + "px";
+  cv.width = Math.round(tot * DPR); cv.height = Math.round(tot * DPR);
+  buildFace();
 }
+function radial(x, y, r0, r1, stops) { const g = cx.createRadialGradient(x, y, r0, x, y, r1); stops.forEach((s) => g.addColorStop(s[0], s[1])); return g; }
 
-function renderIdle() {
-  const base = S.prizes;
-  renderStrip([...base, ...base, ...base], base.length);   // в рамке — первый (главный) приз
-}
-
-function buildSpinStrip(winner) {
-  const base = S.prizes;
-  const list = [...base, ...base, ...base];               // то, что уже на экране — старт без скачка
-  let prev = list[list.length - 1];
-  for (let i = 0; i < 40; i++) {
-    let p;
-    do { p = base[Math.floor(Math.random() * base.length)]; } while (p === prev && base.length > 1);
-    list.push(p); prev = p;
+/* лицо колеса рисуется один раз в отдельный холст, дальше оно только вращается */
+function buildFace() {
+  const n = S.prizes.length; if (!n) { face = null; return; }
+  const R = SZ / 2, px = Math.ceil(SZ * DPR);
+  const f = document.createElement("canvas"); f.width = f.height = px;
+  const c = f.getContext("2d"); c.scale(DPR, DPR); c.translate(SZ / 2, SZ / 2);
+  const seg = TAU / n, rIn = R * 0.905;
+  for (let i = 0; i < n; i++) {
+    const a0 = -Math.PI / 2 + i * seg - seg / 2, a1 = a0 + seg, p = S.prizes[i], L = look(p);
+    const gold = L.hi, dark = !gold && i % 2 === 1, isText = gold ? false : true;
+    c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, rIn, a0, a1); c.closePath();
+    const g = c.createRadialGradient(0, 0, rIn * 0.1, 0, 0, rIn);
+    if (gold) { g.addColorStop(0, "#f7e8c2"); g.addColorStop(.6, "#d9b26f"); g.addColorStop(1, "#9c7430"); }
+    else if (dark) { g.addColorStop(0, "#1a2550"); g.addColorStop(.6, "#101a3d"); g.addColorStop(1, "#080f28"); }
+    else { g.addColorStop(0, "#2b3763"); g.addColorStop(.65, "#1b2650"); g.addColorStop(1, "#101a3d"); }
+    c.fillStyle = g; c.fill();
+    c.save(); c.clip();                                   // боковая подсветка сегмента — объём
+    const am = (a0 + a1) / 2, lg = c.createLinearGradient(Math.cos(a0) * rIn, Math.sin(a0) * rIn, Math.cos(a1) * rIn, Math.sin(a1) * rIn);
+    lg.addColorStop(0, "rgba(255,255,255,.22)"); lg.addColorStop(.5, "rgba(255,255,255,0)"); lg.addColorStop(1, "rgba(0,0,30,.18)");
+    c.fillStyle = lg; c.fillRect(-R, -R, R * 2, R * 2); c.restore();
+    c.strokeStyle = "rgba(255,255,255,.16)"; c.lineWidth = 1.2;
+    c.beginPath(); c.moveTo(Math.cos(a0) * R * 0.2, Math.sin(a0) * R * 0.2); c.lineTo(Math.cos(a0) * rIn, Math.sin(a0) * rIn); c.stroke();
+    // подпись
+    c.textAlign = "center"; c.textBaseline = "middle";
+    const col = gold ? "#1b1407" : "#f4f6fc";
+    const bigPx = Math.max(16, Math.min(R * 0.2, rIn * seg * 0.42));
+    c.save(); c.translate(Math.cos(am) * R * 0.64, Math.sin(am) * R * 0.64); c.rotate(am + Math.PI / 2);
+    c.fillStyle = col; c.font = (gold ? "700 " : "600 ") + bigPx.toFixed(1) + 'px Manrope,"Segoe UI",sans-serif';
+    c.fillText(L.big, 0, -bigPx * 0.16);
+    c.font = "700 " + Math.max(10, bigPx * 0.36).toFixed(1) + 'px Manrope,"Segoe UI",sans-serif';
+    c.fillStyle = gold ? "rgba(27,20,7,.7)" : "rgba(214,222,242,.75)"; c.fillText(L.small, 0, bigPx * 0.56);
+    c.restore();
   }
-  const winIdx = list.length;
-  list.push(winner);
-  for (let i = 0; i < 6; i++) list.push(base[Math.floor(Math.random() * base.length)]);
-  return { list, winIdx };
+  // тонкое внутреннее кольцо и ступица
+  c.lineWidth = 2; c.strokeStyle = "rgba(217,178,111,.7)"; c.beginPath(); c.arc(0, 0, rIn, 0, TAU); c.stroke();
+  face = f;
 }
 
-function animate(from, to, ms, onFrame) {
+/* неподвижный слой: обод, лампочки, блик, ступица, стрелка */
+function drawRim(t) {
+  const R = SZ / 2;
+  cx.save(); cx.scale(DPR, DPR); cx.translate(PAD + R, PAD + R);
+  // тень
+  cx.save(); cx.shadowColor = "rgba(0,0,0,.75)"; cx.shadowBlur = 34; cx.shadowOffsetY = 18; cx.fillStyle = "#050914"; cx.beginPath(); cx.arc(0, 0, R * .985, 0, TAU); cx.fill(); cx.restore();
+  // обод — литое серебро с голубыми отражениями неба
+  let rg;
+  if (cx.createConicGradient) {
+    rg = cx.createConicGradient(-0.6, 0, 0);
+    [[0, "#f4e4bc"], [.12, "#8f6c30"], [.25, "#fff1cf"], [.38, "#a67c35"], [.5, "#f0dca8"], [.63, "#7f5f28"], [.78, "#fbeac4"], [.9, "#9a7433"], [1, "#f4e4bc"]].forEach((s) => rg.addColorStop(s[0], s[1]));
+  } else { rg = cx.createLinearGradient(-R, -R, R, R); rg.addColorStop(0, "#f4e4bc"); rg.addColorStop(.5, "#9a7433"); rg.addColorStop(1, "#fbeac4"); }
+  cx.fillStyle = rg; cx.beginPath(); cx.arc(0, 0, R, 0, TAU); cx.fill();
+  cx.fillStyle = radial(0, 0, R * .9, R, [[0, "rgba(20,12,0,0)"], [.6, "rgba(20,12,0,.0)"], [1, "rgba(20,12,0,.4)"]]); cx.beginPath(); cx.arc(0, 0, R, 0, TAU); cx.fill();
+  // канавка между ободом и колесом
+  cx.lineWidth = 3; cx.strokeStyle = "rgba(4,6,16,.7)"; cx.beginPath(); cx.arc(0, 0, R * .915, 0, TAU); cx.stroke();
+  cx.lineWidth = 1.2; cx.strokeStyle = "rgba(255,241,207,.7)"; cx.beginPath(); cx.arc(0, 0, R * .925, 0, TAU); cx.stroke();
+  // лампочки
+  const nb = 24;
+  for (let i = 0; i < nb; i++) {
+    const a = -Math.PI / 2 + i / nb * TAU, x = Math.cos(a) * R * .955, y = Math.sin(a) * R * .955;
+    const on = spinning ? ((Math.floor(t / 90) + i) % 3 === 0) : (glow > 0 ? (Math.floor(t / 220) + i) % 2 === 0 : true);
+    const lit = on ? 1 : 0.28;
+    cx.fillStyle = radial(x - 1, y - 1.2, 0, R * .028, [[0, "rgba(255,255,255," + (0.95 * lit + .05) + ")"], [.5, on ? "#fff0c8" : "#6b5a3a"], [1, on ? "#d9b26f" : "#3a2f1a"]]);
+    if (on) { cx.shadowColor = "rgba(255,220,150,.85)"; cx.shadowBlur = 8; }
+    cx.beginPath(); cx.arc(x, y, R * .0245, 0, TAU); cx.fill(); cx.shadowBlur = 0;
+  }
+  cx.restore();
+}
+function drawTop() {
+  const R = SZ / 2, rIn = R * .905;
+  cx.save(); cx.scale(DPR, DPR); cx.translate(PAD + R, PAD + R);
+  // стеклянный блик — неподвижный, из-за него вращение выглядит «настоящим»
+  cx.save(); cx.beginPath(); cx.arc(0, 0, rIn, 0, TAU); cx.clip();
+  const gl = cx.createLinearGradient(-R * .6, -R, R * .5, R * .4); gl.addColorStop(0, "rgba(255,255,255,.16)"); gl.addColorStop(.42, "rgba(255,255,255,.03)"); gl.addColorStop(.5, "rgba(255,255,255,0)"); gl.addColorStop(1, "rgba(0,10,50,.16)");
+  cx.fillStyle = gl; cx.fillRect(-R, -R, 2 * R, 2 * R);
+  cx.fillStyle = radial(0, R * .2, R * .1, R * .95, [[0, "rgba(0,0,0,0)"], [1, "rgba(0,10,50,.2)"]]); cx.fillRect(-R, -R, 2 * R, 2 * R);
+  cx.restore();
+  // ступица
+  const hr = R * .17;
+  cx.save(); cx.shadowColor = "rgba(0,10,60,.5)"; cx.shadowBlur = 14; cx.shadowOffsetY = 5;
+  cx.fillStyle = radial(-hr * .35, -hr * .4, hr * .1, hr * 1.1, [[0, "#fff1cf"], [.45, "#d9b26f"], [1, "#7f5f28"]]); cx.beginPath(); cx.arc(0, 0, hr, 0, TAU); cx.fill(); cx.restore();
+  cx.fillStyle = radial(-hr * .2, -hr * .25, hr * .05, hr * .78, [[0, "#1d2a5a"], [1, "#070d20"]]); cx.beginPath(); cx.arc(0, 0, hr * .74, 0, TAU); cx.fill();
+  cx.fillStyle = "#f0dca8"; cx.font = "italic 600 " + (hr * .78).toFixed(1) + 'px "Cormorant Garamond",Georgia,serif'; cx.textAlign = "center"; cx.textBaseline = "middle"; cx.fillText("Y", 0, hr * .05);
+  // стрелка (пружинит на колышках)
+  cx.save(); cx.translate(0, -R * .995); cx.rotate(pAng);
+  const pw = R * .075, ph = R * .2;
+  cx.shadowColor = "rgba(0,10,60,.55)"; cx.shadowBlur = 10; cx.shadowOffsetY = 4;
+  const pg = cx.createLinearGradient(-pw, 0, pw, 0); pg.addColorStop(0, "#9c7430"); pg.addColorStop(.5, "#f7e8c2"); pg.addColorStop(1, "#8a6528");
+  cx.fillStyle = pg; cx.beginPath(); cx.moveTo(-pw, -ph * .15); cx.quadraticCurveTo(-pw, ph * .45, 0, ph); cx.quadraticCurveTo(pw, ph * .45, pw, -ph * .15); cx.quadraticCurveTo(0, -ph * .45, -pw, -ph * .15); cx.fill();
+  cx.shadowBlur = 0; cx.fillStyle = radial(-pw * .2, -ph * .1, 0, pw * .7, [[0, "#fff"], [1, "#a89a78"]]); cx.beginPath(); cx.arc(0, -ph * .06, pw * .45, 0, TAU); cx.fill();
+  cx.restore(); cx.restore();
+}
+function drawWheel(t) {
+  cx.setTransform(1, 0, 0, 1, 0, 0); cx.clearRect(0, 0, cv.width, cv.height);
+  drawRim(t);
+  const R = SZ / 2;
+  if (face) {
+    cx.save(); cx.scale(DPR, DPR); cx.translate(PAD + R, PAD + R); cx.rotate(rot);
+    cx.drawImage(face, -SZ / 2, -SZ / 2, SZ, SZ);
+    if (glow > 0 && glowIdx >= 0) {                         // подсветка выигранного сегмента
+      const seg = TAU / segCount(), a0 = -Math.PI / 2 + glowIdx * seg - seg / 2;
+      cx.beginPath(); cx.moveTo(0, 0); cx.arc(0, 0, R * .905, a0, a0 + seg); cx.closePath();
+      cx.fillStyle = "rgba(255,240,190," + (0.42 * Math.min(1, glow) * (0.6 + 0.4 * Math.sin(t / 160))).toFixed(3) + ")"; cx.fill();
+    }
+    cx.restore();
+  }
+  cx.setTransform(1, 0, 0, 1, 0, 0);
+  drawTop();
+}
+
+/* стрелка: каждый колышек отгибает её, потом пружина возвращает */
+function stepPointer(dt) {
+  const n = segCount(), seg = TAU / n;
+  const a = (((-rot) % TAU) + TAU) % TAU;                    // положение под стрелкой в системе колеса
+  const d = ((a + seg / 2) % seg) / seg;                     // 0..1 внутри сегмента
+  const near = Math.max(0, 1 - d / 0.2);                     // колышек у самой стрелки
+  const target = near * 0.5;
+  const k = 260, c = 15;
+  pVel += ((target - pAng) * k - pVel * c) * dt; pAng += pVel * dt;
+  const idx = Math.floor((a + seg / 2) / seg) % n;
+  return idx;
+}
+
+let raf = 0, lastT = 0;
+function loop(now) {
+  raf = requestAnimationFrame(loop);
+  const dt = Math.min(0.05, (now - (lastT || now)) / 1000); lastT = now;
+  if (!spinning && idleOn && !reduced && face) { rot += 0.05 * dt; }
+  if (glow > 0) glow = Math.max(0, glow - dt * 0.35);
+  const idx = stepPointer(dt);
+  if (spinning && idx !== lastIdx) {
+    lastIdx = idx;
+    const s = S.prizes[idx]; if (s) { setTitle(s.label); setChip("Шанс " + chance(s)); }
+    if (now - lastTick > 55) { lastTick = now; tgTry(() => tg.HapticFeedback.selectionChanged()); }
+  }
+  drawWheel(now);
+}
+let lastIdx = -1;
+const ease = (t) => { const e = 1 - Math.pow(1 - t, 4); const ss = Math.min(1, t / 0.05); return e * (ss * ss * (3 - 2 * ss)); };
+
+function renderIdle() { fitCanvas(); }
+function spinTo(winnerIdx, ms) {
   return new Promise((resolve) => {
+    const n = segCount(), seg = TAU / n;
+    const jitter = (Math.random() - 0.5) * seg * 0.56;         // не строго по центру сегмента
+    const want = -(winnerIdx * seg + jitter);                    // вращение, при котором нужный сегмент под стрелкой
+    const from = rot;
+    let delta = ((want - from) % TAU + TAU) % TAU;               // всегда по часовой
+    const to = from + delta + TAU * (reduced ? 1 : 5);
     const t0 = performance.now();
+    spinning = true; idleOn = false;
     (function frame(now) {
       const t = Math.min(1, (now - t0) / ms);
-      setPos(from + (to - from) * (1 - Math.pow(1 - t, 4)));   // плавное торможение
-      if (onFrame) onFrame();
-      if (t < 1) requestAnimationFrame(frame); else resolve();
+      rot = from + (to - from) * ease(t);
+      if (t < 1) requestAnimationFrame(frame); else { rot = to; resolve(); }
     })(t0);
   });
 }
@@ -252,36 +367,30 @@ function animate(from, to, ms, onFrame) {
 /* ===== ТЕКСТЫ ===== */
 function setTitle(t) {
   const el = $("title");
-  el.style.fontSize = "";
-  el.textContent = t;
+  el.style.fontSize = ""; el.textContent = t;
   let fs = parseFloat(getComputedStyle(el).fontSize);
   while (el.scrollWidth > el.clientWidth && fs > 20) { fs -= 1; el.style.fontSize = fs + "px"; }
 }
 const setChip = (t) => { $("chip").textContent = t; };
-
 function setNote(text, kind) { S.noteOverride = text ? { text, kind } : null; renderNote(); }
 function renderNote() {
   let n = S.noteOverride;
   if (!n) {
     if (S.fatal) n = { text: S.fatal.msg, kind: "err" };
-    else if (S.demo) n = { text: (tg && tg.initData) ? "Приложение не настроено: в index.html не указан API_BASE. Сейчас это демо — призы не начисляются." : "Демо-режим: призы не начисляются. Откройте приложение из бота, чтобы играть по-настоящему.", kind: "" };
     else if (S.result) n = { text: S.result.message, kind: "ok" };
     else if (S.loaded && !S.hasTicket) n = { text: "Новый билетик появится в 14:00 по Москве.", kind: "" };
     else if (S.pendingBonus) n = { text: "У вас активен бонус +" + S.pendingBonus + "% к следующему пополнению баланса.", kind: "" };
     else n = { text: "", kind: "" };
   }
   const el = $("note");
-  el.textContent = n.text;
-  el.className = "note" + (n.kind ? " " + n.kind : "");
+  el.textContent = n.text; el.className = "note" + (n.kind ? " " + n.kind : "");
 }
-
 function fmtHMS(sec) {
   sec = Math.max(0, Math.floor(sec));
   const p = (v) => String(v).padStart(2, "0");
   return p(Math.floor(sec / 3600)) + ":" + p(Math.floor(sec % 3600 / 60)) + ":" + p(sec % 60);
 }
 const nowSrv = () => Date.now() / 1000 + S.skew;
-
 function fmtDate(ts) {
   const d = new Date(ts * 1000), now = new Date();
   const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
@@ -298,26 +407,20 @@ function renderInfo() {
   setTitle(top ? "Главный приз — " + money(top.amount) : "Ежедневная рулетка");
   setChip(!S.loaded ? "Загрузка…" : S.hasTicket ? "Билетик: 1" : "Билетик использован");
 }
-
 function renderBalance() {
   const el = $("balance");
-  if (S.demo) { el.hidden = false; el.textContent = "Демо"; }
-  else if (S.balance != null) { el.hidden = false; el.textContent = "Баланс " + money(S.balance); }
-  else el.hidden = true;
+  if (S.balance != null) { el.hidden = false; el.innerHTML = "<span>Баланс</span> " + money(S.balance); } else el.hidden = true;
 }
-
 function renderLists() {
-  const odds = $("odds");
-  odds.replaceChildren(...S.prizes.map((p) => {
+  $("odds").replaceChildren(...S.prizes.map((p) => {
     const li = document.createElement("li"); li.className = "row";
     const name = document.createElement("span"); name.className = "name"; name.textContent = p.label;
     const meta = document.createElement("span"); meta.className = "meta"; meta.textContent = chance(p);
     li.append(tile(p, "mini"), name, meta);
     return li;
   }));
-  const hist = $("history");
   const items = S.history.slice(0, 10);
-  hist.replaceChildren(...items.map((h) => {
+  $("history").replaceChildren(...items.map((h) => {
     const li = document.createElement("li"); li.className = "row";
     const name = document.createElement("span"); name.className = "name"; name.textContent = h.label;
     const meta = document.createElement("span"); meta.className = "meta"; meta.textContent = fmtDate(h.at);
@@ -326,17 +429,14 @@ function renderLists() {
   }));
   $("historyEmpty").hidden = items.length > 0;
 }
-
 function renderCta() {
   const b = $("cta");
   if (S.fatal) { b.disabled = false; b.textContent = S.fatal.cta; return; }
   if (S.busy) { b.disabled = true; b.textContent = "Крутится…"; return; }
   if (!S.loaded) { b.disabled = true; b.textContent = "Загрузка…"; return; }
-  if (S.hasTicket) { b.disabled = false; b.textContent = S.demo ? "Крутить (демо)" : "Крутить"; return; }
-  b.disabled = true;
-  b.textContent = "Следующий билет через " + fmtHMS(S.nextAt - nowSrv());
+  if (S.hasTicket) { b.disabled = false; b.textContent = "Крутить"; return; }
+  b.disabled = true; b.textContent = "Следующий билет через " + fmtHMS(S.nextAt - nowSrv());
 }
-
 function renderAll() { renderInfo(); renderBalance(); renderLists(); renderCta(); renderNote(); }
 
 /* ===== СЕТЬ ===== */
@@ -354,28 +454,22 @@ async function api(path) {
     return data;
   } finally { clearTimeout(timer); }
 }
-
 function fail(code, retry) {
   S.loaded = true;
   S.fatal = { msg: ERR[code] || ERR.server_error, cta: retry ? "Повторить" : "Вернуться в бота", retry: !!retry };
   renderAll();
 }
-
 function applyStatus(d) {
   if (d.prizes && d.prizes.length) S.prizes = d.prizes;
-  S.hasTicket = !!d.has_ticket;
-  S.nextAt = d.next_ticket_at;
-  S.skew = d.server_time - Date.now() / 1000;
-  S.balance = d.balance;
-  S.history = d.history || [];
-  S.pendingBonus = d.pending_deposit_bonus;
-  S.loaded = true;
-  S.fatal = null;
+  S.hasTicket = !!d.has_ticket; S.nextAt = d.next_ticket_at; S.skew = d.server_time - Date.now() / 1000;
+  S.balance = d.balance; S.history = d.history || []; S.pendingBonus = d.pending_deposit_bonus;
+  S.loaded = true; S.fatal = null;
   if (!S.busy && !S.result) renderIdle();
   renderAll();
 }
-
 async function loadStatus() {
+  if (!API_BASE) await resolveApi();
+  if (!API_BASE) return fail("not_configured", false);
   try {
     const d = await api("/api/roulette/status");
     if (!d.ok) return fail(d.error, false);
@@ -383,40 +477,7 @@ async function loadStatus() {
   } catch (_) { fail("network", true); }
 }
 
-/* ===== ДЕМО ===== */
-function demoSpin() {
-  let r = Math.random() * totalWeight(), win = S.prizes[S.prizes.length - 1];
-  for (const p of S.prizes) { if ((r -= p.weight) < 0) { win = p; break; } }
-  return { ok: true, prize: win, message: "Это демо — приз не начислен.", balance: null, next_ticket_at: 0 };
-}
-
 /* ===== ПРОКРУТКА ===== */
-let lastTick = 0, lastIdx = -1;
-function onFrame() {
-  const i = idxAt();
-  if (i === lastIdx || !cards[i]) return;
-  lastIdx = i;
-  setTitle(cards[i].label);
-  setChip("Шанс " + chance(cards[i]));
-  const now = performance.now();
-  if (now - lastTick > 55) { lastTick = now; tgTry(() => tg.HapticFeedback.selectionChanged()); }
-}
-
-function burst(colors) {
-  if (reduced) return;
-  const wrap = $("reelWrap");
-  for (let i = 0; i < 26; i++) {
-    const s = document.createElement("i");
-    const a = Math.random() * Math.PI * 2, r = 70 + Math.random() * 90;
-    s.className = "spark";
-    s.style.setProperty("--x", Math.cos(a) * r + "px");
-    s.style.setProperty("--y", Math.sin(a) * r * 0.7 + "px");
-    s.style.setProperty("--c", colors[i % colors.length]);
-    wrap.appendChild(s);
-    setTimeout(() => s.remove(), 1000);
-  }
-}
-
 async function spin() {
   if (S.busy || !S.hasTicket || !S.loaded || S.fatal) return;
   S.busy = true; S.result = null; setNote("");
@@ -425,7 +486,7 @@ async function spin() {
   tgTry(() => tg.enableClosingConfirmation());
 
   let res;
-  try { res = S.demo ? demoSpin() : await api("/api/roulette/spin"); }
+  try { res = await api("/api/roulette/spin"); }
   catch (_) { S.busy = false; tgTry(() => tg.disableClosingConfirmation()); setNote(ERR.network, "err"); renderCta(); return; }
 
   if (!res.ok) {
@@ -437,30 +498,69 @@ async function spin() {
     return;
   }
 
-  const winner = S.prizes.find((p) => p.key === res.prize.key) || res.prize;
-  const { list, winIdx } = buildSpinStrip(winner);
-  renderStrip(list, S.prizes.length);
+  const winner = S.prizes.find((p) => p.key === res.prize.key) || res.prize;   // приз выбрал СЕРВЕР — колесо лишь «доезжает» до него
+  let wi = S.prizes.findIndex((p) => p.key === winner.key); if (wi < 0) wi = 0;
   lastIdx = -1;
-  await animate(pos, offsetFor(winIdx), reduced ? 700 : 5800, onFrame);
-  setPos(offsetFor(winIdx));
-  S.focusIdx = winIdx;
+  await spinTo(wi, reduced ? 900 : 6200);
+  spinning = false; glowIdx = wi; glow = 1.6;
+  burst();
 
   S.busy = false;
   S.result = { prize: winner, message: res.message };
-  if (!S.demo) {
-    S.hasTicket = false;
-    S.nextAt = res.next_ticket_at;
-    S.balance = res.balance;
-    S.history.unshift({ label: winner.label, at: Math.floor(nowSrv()) });
-  }
+  S.hasTicket = false; S.nextAt = res.next_ticket_at; S.balance = res.balance;
+  S.history.unshift({ label: winner.label, at: Math.floor(nowSrv()) });
   tgTry(() => tg.disableClosingConfirmation());
   tgTry(() => tg.HapticFeedback.notificationOccurred("success"));
-  const frame = $("frame");
-  frame.classList.remove("win"); void frame.offsetWidth; frame.classList.add("win");
-  frame.addEventListener("animationend", () => frame.classList.remove("win"), { once: true });
-  if (winner.type === "balance" && winner.amount >= 50) burst(["#ffd24a", "#ff8a1f", "#4d94ff", "#a066ff", "#fff"]);
   renderAll();
 }
+
+
+/* ===== ЭФФЕКТ ПОБЕДЫ: мягкие золотые искры ===== */
+const fx = $("fx"), fc = fx.getContext("2d");
+let sparks = [], fxRun = false;
+function burst() {
+  if (reduced) return;
+  const r = cv.getBoundingClientRect(), W = innerWidth, H = innerHeight;
+  fx.width = W * DPR; fx.height = H * DPR;
+  const ox = r.left + r.width / 2, oy = r.top + PAD + SZ / 2;
+  for (let i = 0; i < 90; i++) {
+    const a = Math.random() * TAU, v = 120 + Math.random() * 380;
+    sparks.push({ x: ox, y: oy, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 120, life: 1, d: 0.5 + Math.random() * 0.9, s: 1.5 + Math.random() * 3.2, h: Math.random() < 0.7 ? 40 : 45 });
+  }
+  if (!fxRun) { fxRun = true; let t0 = performance.now(); (function f(now) {
+    const dt = Math.min(0.05, (now - t0) / 1000); t0 = now;
+    fc.setTransform(DPR, 0, 0, DPR, 0, 0); fc.clearRect(0, 0, W, H);
+    sparks = sparks.filter((s) => s.life > 0);
+    for (const s of sparks) {
+      s.vy += 520 * dt; s.vx *= 1 - 1.4 * dt; s.vy *= 1 - 0.9 * dt; s.x += s.vx * dt; s.y += s.vy * dt; s.life -= dt / s.d;
+      const a = Math.max(0, s.life);
+      fc.fillStyle = "hsla(" + s.h + ",95%," + (s.h === 40 ? 66 : 88) + "%," + a.toFixed(2) + ")";
+      fc.shadowColor = "hsla(" + s.h + ",100%,70%,.9)"; fc.shadowBlur = 8;
+      fc.beginPath(); fc.arc(s.x, s.y, s.s * (0.5 + a * 0.6), 0, TAU); fc.fill();
+    }
+    if (sparks.length) requestAnimationFrame(f); else { fxRun = false; fc.clearRect(0, 0, W, H); }
+  })(t0); }
+}
+
+/* ===== ФОН: звёздное небо (рисуется один раз, потом только плавно плывёт) ===== */
+(function space() {
+  const c = $("skyCv"), D = Math.min(window.devicePixelRatio || 1, 2), W = window.innerWidth, H = Math.round(window.innerHeight * 1.1);
+  c.width = Math.round(W * D); c.height = Math.round(H * D);
+  const g = c.getContext("2d"); g.scale(D, D);
+  let sd = 20260930; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  const gauss = () => (rnd() + rnd() + rnd() + rnd() - 2) / 2;
+  const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, "#010208"); bg.addColorStop(.5, "#030716"); bg.addColorStop(1, "#061029");
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  g.globalCompositeOperation = "lighter";
+  const s = Math.max(W, H);
+  const glow = (x, y, r, rgb, a) => { const q = g.createRadialGradient(x, y, 0, x, y, r); q.addColorStop(0, "rgba(" + rgb + "," + a + ")"); q.addColorStop(.5, "rgba(" + rgb + "," + a * .35 + ")"); q.addColorStop(1, "rgba(" + rgb + ",0)"); g.fillStyle = q; g.fillRect(x - r, y - r, r * 2, r * 2); };
+  glow(W * .8, H * .22, s * .55, "28,64,150", .14); glow(W * .1, H * .75, s * .5, "22,58,110", .1); glow(W * .5, H * .98, s * .6, "18,44,96", .09);
+  const ax = -W * .1, ay = H * .86, bx = W * 1.1, by = H * .14, dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy), nx = -dy / len, ny = dx / len;
+  for (let i = 0; i < 40; i++) { const t = rnd(), o = gauss() * s * .1; glow(ax + dx * t + nx * o, ay + dy * t + ny * o, s * (.07 + rnd() * .1), "80,105,160", .025 + rnd() * .02); }
+  const dot = (x, y, r, a, col) => { g.globalAlpha = a; g.fillStyle = col; g.beginPath(); g.arc(x, y, r, 0, 6.2832); g.fill(); };
+  for (let i = 0, n = Math.round(W * H / 95); i < n; i++) { const t = rnd(), o = gauss() * s * .085, x = ax + dx * t + nx * o, y = ay + dy * t + ny * o; if (x > 0 && x < W && y > 0 && y < H) dot(x, y, .25 + rnd() * .45, .1 + rnd() * .34, rnd() < .7 ? "#dfe8ff" : "#ffe9cf"); }
+  for (let i = 0, m = Math.round(W * H / 2600); i < m; i++) { const p = Math.pow(rnd(), 3.4); dot(rnd() * W, rnd() * H, .28 + p * 1.05, .25 + rnd() * .65, rnd() < .62 ? "#e8eeff" : rnd() < .55 ? "#bcd0ff" : "#ffe6c4"); }
+})();
 
 /* ===== ЗАПУСК ===== */
 $("cta").addEventListener("click", () => {
@@ -471,28 +571,27 @@ $("cta").addEventListener("click", () => {
   }
   spin();
 });
-
 setInterval(() => {
-  if (S.busy || S.fatal || !S.loaded || S.hasTicket || S.demo) return;
+  if (S.busy || S.fatal || !S.loaded || S.hasTicket) return;
   const left = S.nextAt - nowSrv();
   if (left > 0) { renderCta(); return; }
   if (Date.now() - S.lastRefresh > 3000) { S.lastRefresh = Date.now(); loadStatus(); }   // билет должен появиться — спрашиваем сервер
 }, 250);
-
-window.addEventListener("resize", () => { if (!S.busy) setPos(offsetFor(S.focusIdx)); });
+window.addEventListener("resize", () => { if (!S.busy) fitCanvas(); });
 
 if (tg) {
-  tgTry(() => tg.ready());
-  tgTry(() => tg.expand());
-  tgTry(() => tg.setHeaderColor("#232326"));
-  tgTry(() => tg.setBackgroundColor("#232326"));
-  tgTry(() => tg.setBottomBarColor("#232326"));
+  tgTry(() => tg.ready()); tgTry(() => tg.expand());
+  tgTry(() => tg.setHeaderColor("#030716")); tgTry(() => tg.setBackgroundColor("#030716")); tgTry(() => tg.setBottomBarColor("#030716"));
   tgTry(() => tg.disableVerticalSwipes());
 }
 
-renderIdle();
-renderAll();
-if (S.demo) { S.loaded = true; renderAll(); } else { loadStatus(); }
+if (OUTSIDE) { document.body.classList.add("outside"); }
+else {
+  fitCanvas(); requestAnimationFrame(loop);
+  renderAll();
+  loadStatus();
+  if (document.fonts && document.fonts.load) Promise.all([document.fonts.load('600 20px Manrope'), document.fonts.load('italic 600 20px "Cormorant Garamond"')]).then(() => { if (!S.busy) buildFace(); }).catch(() => {});
+}
 </script>
 </body>
 </html>
